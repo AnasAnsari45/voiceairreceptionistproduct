@@ -1,0 +1,7 @@
+name = "vai-web"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".vercel/output/static"
+
+# Set secrets via: wrangler pages secret put SECRET_NAME
+# Or via the Cloudflare Pages dashboard → Settings → Environment variables

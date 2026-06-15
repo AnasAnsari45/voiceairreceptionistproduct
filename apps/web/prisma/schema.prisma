@@ -1,0 +1,154 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+// ---------------------------------------------------------------------------
+// Tenants — one row per business
+// ---------------------------------------------------------------------------
+model Tenant {
+  id               String   @id @default(cuid())
+  clerkUserId      String?  @unique     // links to Clerk user account
+  name             String
+  timezone         String   @default("America/New_York")
+  hoursJson        Json     @default("{}")   // { "mon": "8am-5pm", "sat": "9am-2pm", ... }
+  location         String?
+  contactPhone     String?
+  contactEmail     String?
+  persona          String   @default("a professional and helpful receptionist")
+  greeting         String?
+  nicheTemplate    String?  // "dental" | "home_services" | "salon" | …
+  enabledFeatures  Json     @default("{}")   // { "booking": true, "crossCallMemory": true }
+  escalationConfig Json     @default("{}")   // { "email": "owner@example.com" }
+  plan             String   @default("starter")
+  stripeCustomerId String?
+  stripeSubId      String?
+  stripeSubStatus  String?
+  calcomEventTypeId String?
+  addCallerAsGuest Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  phoneNumbers PhoneNumber[]
+  knowledge    Knowledge[]
+  customers    Customer[]
+  calls        Call[]
+  appointments Appointment[]
+
+  @@map("tenants")
+}
+
+// ---------------------------------------------------------------------------
+// Phone numbers — one or more per tenant
+// ---------------------------------------------------------------------------
+model PhoneNumber {
+  id        String   @id @default(cuid())
+  tenantId  String
+  e164      String   @unique  // e.g. +15551234567
+  provider  String   @default("telnyx")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([e164])
+  @@map("phone_numbers")
+}
+
+// ---------------------------------------------------------------------------
+// Knowledge base — FAQs, services, policies (per tenant)
+// ---------------------------------------------------------------------------
+model Knowledge {
+  id        String   @id @default(cuid())
+  tenantId  String
+  type      String   // "faq" | "service" | "policy" | "hours"
+  title     String
+  content   String
+  price     String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, type])
+  @@map("knowledge")
+}
+
+// ---------------------------------------------------------------------------
+// Customers — scoped to a tenant; identified by phone number
+// ---------------------------------------------------------------------------
+model Customer {
+  id        String   @id @default(cuid())
+  tenantId  String
+  phone     String   // E.164
+  name      String?
+  email     String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  calls        Call[]
+  appointments Appointment[]
+
+  @@unique([tenantId, phone])
+  @@index([tenantId, phone])
+  @@map("customers")
+}
+
+// ---------------------------------------------------------------------------
+// Calls — one row per inbound call leg
+// ---------------------------------------------------------------------------
+model Call {
+  id          String    @id @default(cuid())
+  tenantId    String
+  customerId  String?
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  durationSec Int?
+  transcript  String?
+  summary     String?
+  intent      String?   // "booking" | "inquiry" | "cancellation" | "emergency" | "other"
+  outcome     String?   // "resolved" | "escalated" | "voicemail" | "abandoned"
+  rawMeta     Json?     // Telnyx call metadata
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id])
+
+  @@index([tenantId, startedAt(sort: Desc)])
+  @@index([tenantId, customerId])
+  @@map("calls")
+}
+
+// ---------------------------------------------------------------------------
+// Appointments — booked/rescheduled/cancelled via Cal.com
+// ---------------------------------------------------------------------------
+model Appointment {
+  id              String    @id @default(cuid())
+  tenantId        String
+  customerId      String?
+  callId          String?   // which call triggered this
+  calendarEventId String?   // Cal.com booking uid
+  type            String?
+  startTime       DateTime?
+  endTime         DateTime?
+  status          String    @default("booked")  // "booked" | "rescheduled" | "cancelled"
+  ownerNotified   Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([tenantId, startTime])
+  @@map("appointments")
+}

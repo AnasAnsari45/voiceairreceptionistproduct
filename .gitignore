@@ -1,0 +1,40 @@
+# Claude Code internal files — never commit
+.claude/
+
+# Unrelated sibling projects
+heavyportfolio/
+
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+.turbo/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Build artifacts
+.vercel/
+.wrangler/
+.cloudflare/
+
+# Local tenant data (flat-file dev storage — replaced by Neon in Phase 2)
+apps/web/data/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
