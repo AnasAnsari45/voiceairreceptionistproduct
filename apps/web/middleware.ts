@@ -15,7 +15,7 @@ export default clerkMiddleware(async (auth, request) => {
 
   // Unauthenticated: protect all non-public routes
   if (!userId && !isPublicRoute(request)) {
-    return (await auth()).redirectToSignIn();
+    return NextResponse.redirect(new URL("/sign-in", request.url));
   }
 
   if (userId) {
