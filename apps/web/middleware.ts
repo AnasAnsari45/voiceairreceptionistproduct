@@ -19,9 +19,12 @@ export default clerkMiddleware(async (auth, request) => {
   }
 
   if (userId) {
-    const onboardingComplete =
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      !!(sessionClaims as any)?.publicMetadata?.onboardingComplete;
+    // Check cookie first (immediate, set by /api/onboarding on completion).
+    // Fall back to Clerk JWT publicMetadata (reflects after token refresh ~60s).
+    const cookieDone = request.cookies.get("vai_onboarding_complete")?.value === "1";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const jwtDone = !!(sessionClaims as any)?.publicMetadata?.onboardingComplete;
+    const onboardingComplete = cookieDone || jwtDone;
 
     // Signed in, on the landing page → route them to the right place
     if (request.nextUrl.pathname === "/") {

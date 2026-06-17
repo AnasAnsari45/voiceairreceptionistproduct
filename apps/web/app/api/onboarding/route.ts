@@ -32,5 +32,16 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  return NextResponse.json({ success: true });
+  // Set a cookie so the middleware can gate /dashboard immediately — the Clerk
+  // session JWT won't reflect the publicMetadata change until the next refresh
+  // (~60s), so we use a cookie as the fast signal for the current session.
+  const response = NextResponse.json({ success: true });
+  response.cookies.set("vai_onboarding_complete", "1", {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+  });
+  return response;
 }
