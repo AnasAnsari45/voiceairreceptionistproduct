@@ -12,50 +12,60 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
 
-  // Upsert tenant — safe to call again if the user re-submits onboarding
-  const tenant = await prisma.tenant.upsert({
-    where: { clerkUserId: userId },
-    create: {
-      clerkUserId: userId,
-      name: body.name,
-      contactPhone: body.phone ?? null,
-      location: body.address ?? null,
-      hoursJson: {
-        weekdays: body.hoursWeekdays ?? "",
-        saturday: body.hoursSaturday ?? "",
-      },
-      nicheTemplate: body.niche ?? null,
-      persona: `a professional and helpful receptionist named ${body.personaName}`,
-      greeting: body.greeting ?? null,
-    },
-    update: {
-      name: body.name,
-      contactPhone: body.phone ?? null,
-      location: body.address ?? null,
-      hoursJson: {
-        weekdays: body.hoursWeekdays ?? "",
-        saturday: body.hoursSaturday ?? "",
-      },
-      nicheTemplate: body.niche ?? null,
-      persona: `a professional and helpful receptionist named ${body.personaName}`,
-      greeting: body.greeting ?? null,
-    },
-  });
+  let tenant: { id: string };
 
-  // Replace FAQs: wipe existing rows, insert fresh set
-  await prisma.knowledge.deleteMany({ where: { tenantId: tenant.id } });
-
-  const faqs: { q: string; a: string }[] = Array.isArray(body.faqs) ? body.faqs : [];
-  if (faqs.length > 0) {
-    await prisma.knowledge.createMany({
-      data: faqs.map((faq, i) => ({
-        tenantId: tenant.id,
-        type: "faq",
-        title: faq.q,
-        content: faq.a,
-        sortOrder: i,
-      })),
+  try {
+    // Upsert tenant — safe to call again if the user re-submits onboarding
+    tenant = await prisma.tenant.upsert({
+      where: { clerkUserId: userId },
+      create: {
+        clerkUserId: userId,
+        name: body.name,
+        contactPhone: body.phone ?? null,
+        location: body.address ?? null,
+        hoursJson: {
+          weekdays: body.hoursWeekdays ?? "",
+          saturday: body.hoursSaturday ?? "",
+        },
+        nicheTemplate: body.niche ?? null,
+        persona: `a professional and helpful receptionist named ${body.personaName}`,
+        greeting: body.greeting ?? null,
+      },
+      update: {
+        name: body.name,
+        contactPhone: body.phone ?? null,
+        location: body.address ?? null,
+        hoursJson: {
+          weekdays: body.hoursWeekdays ?? "",
+          saturday: body.hoursSaturday ?? "",
+        },
+        nicheTemplate: body.niche ?? null,
+        persona: `a professional and helpful receptionist named ${body.personaName}`,
+        greeting: body.greeting ?? null,
+      },
     });
+
+    // Replace FAQs: wipe existing rows, insert fresh set
+    await prisma.knowledge.deleteMany({ where: { tenantId: tenant.id } });
+
+    const faqs: { q: string; a: string }[] = Array.isArray(body.faqs) ? body.faqs : [];
+    if (faqs.length > 0) {
+      await prisma.knowledge.createMany({
+        data: faqs.map((faq, i) => ({
+          tenantId: tenant.id,
+          type: "faq",
+          title: faq.q,
+          content: faq.a,
+          sortOrder: i,
+        })),
+      });
+    }
+  } catch (err) {
+    console.error("[onboarding] DB error:", err);
+    return NextResponse.json(
+      { error: "Database error", detail: String(err) },
+      { status: 500 }
+    );
   }
 
   // Clerk publicMetadata: just the gate flag + tenantId (config lives in DB now)
